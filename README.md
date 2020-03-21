@@ -1,11 +1,11 @@
 # react-suspense-image
 
-Apply React suspense for loading image
+Apply React suspense for lazy load image
 
 ---
 
 <blockquote>
-When the user is under a slow network or the image size is large, the image will paint step by step which makes the user feel even slower. A solution for that is to display a placeholder and replace it after the image was loaded. In this article, I will demonstrate how to achieve it by using react suspense.
+When the user is under a slow network or the image size is large, the image will paint step by step which makes the user feel even slower. A solution to prevent bad user experience is to display a placeholder and replace by the correct image after the image was loaded. In this article, I will demonstrate how to achieve it by using react suspense.
 </blockquote>
 
 ## Agenda
@@ -17,9 +17,9 @@ When the user is under a slow network or the image size is large, the image will
 
 ### Generate Image Placeholder <a name="agenda-1"></a>
 
-Because we want to display the image when it's fully loaded. We still need to display something during the image loading process.  
+We want to display the image after the image is loaded. So we need to display something else during the image loading process.  
 A solution is to display the same image with a smaller size. But we will have to generate a smaller version for all our images. This might not be the best solution in some scenarios.  
-Another solution I want to show you is to generate a placeholder. Here I generate an SVG base on the size and color we need and encode to Base64. Then we can use it as a placeholder before the image is loaded.
+Another solution is to generate a placeholder. Here I generate an SVG base on the size and color we want and encode to Base64. Then we can use it as a placeholder before the image is loaded.
 
 ```js
 const cache = {};
@@ -42,7 +42,7 @@ const generatePlaceholder = (ratio, color) => {
 
 ### React-Cache <a name="agenda-2"></a>
 
-To use react suspense for the image loading, we will need to apply react cache to create a resource and resolve when image is loaded.
+To allow react suspense for know the image is loaded, we need to apply `React-Cache` to create a resource and resolve when image is loaded.
 
 ```js
 import { unstable_createResource } from "react-cache";
@@ -57,12 +57,13 @@ const ImageResource = unstable_createResource(
 );
 ```
 
-If we use this in our application, we will see an error:  
- `Cannot ready property 'readContext' of undefined`
+If we use this in our application, we will see an error:
 
-The reason is that the API of React-cache is not ready and it's unstable at the moment.  
-So we need to add a patch to fix this issue.
-Here I use [patch-package](https://www.npmjs.com/package/patch-package) to handle this problem.
+```
+Cannot ready property 'readContext' of undefined
+```
+
+The reason is that the API of `React-Cache` is unstable at the moment. So we need to add a patch to fix this issue. Here I use [patch-package](https://www.npmjs.com/package/patch-package) to handle this problem.
 
 1. install package
 
@@ -76,17 +77,19 @@ yarn add patch-package postinstall-postinstall
 "postinstall": "patch-package"
 ```
 
-3. modify the code base on the [comment](https://github.com/facebook/react/issues/14575#issuecomment-455096301)
+3. modify the code base on this [comment](https://github.com/facebook/react/issues/14575#issuecomment-455096301)
 4. generate patch
 
 ```shell
 yarn patch-package react-cache
 ```
 
+_PS. Although we can apply this patch to make the `React-Cache` work but is still no suggest to use this in the production environment._
+
 ### React-Suspense <a name="agenda-3"></a>
 
 Now we can apply React suspense to create a lazy load image.  
-Here we put our image src into the ImageResource which created through React-cache and use the placeholder as a fallback in React suspense.  
+Here we put our image src into the `ImageResource` and use the placeholder as a fallback in React suspense.  
 Before the image loaded, the suspense will display the fallback.  
 After the image loaded and resolve the resource, the placeholder will be replaced by the original image.
 
@@ -116,9 +119,8 @@ The result will look like this. And here is the repository for reference - [reac
 
 ### SrcSet <a name="agenda-4"></a>
 
-It's worth mentioning that although display a placeholder while the image is loading can increase the user experience. But it won't make the image load faster. Therefore, to provide a proper size of the image is very important.
-
-If we want to display different sizes of the image on our web application base on the screen size. We can use `srcset` attribute on the img tag.
+It's worth mentioning that although display a placeholder while the image is loading can increase the user experience. But it won't make the image load faster. Therefore, providing a proper size of the image is very important. When choosing the size for the images, don't forget to consider the resolution of the device.  
+And If we want to display different sizes of the image on our web application base on the screen size. We can use `srcset` attribute on the img tag.
 
 ```html
 <img sizes="(min-width: 40em) 80vw, 100vw" srcset=" ... " alt="…" />
