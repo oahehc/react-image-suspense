@@ -1,68 +1,134 @@
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+# react-suspense-image
 
-## Available Scripts
+Apply React suspense for loading image
 
-In the project directory, you can run:
+---
 
-### `yarn start`
+<blockquote>
+When the user is under a slow network or the image size is large, the image will paint step by step which makes the user feel even slower. A solution for that is to display a placeholder and replace it after the image was loaded. In this article, I will demonstrate how to achieve it by using react suspense.
+</blockquote>
 
-Runs the app in the development mode.<br />
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+## Agenda
 
-The page will reload if you make edits.<br />
-You will also see any lint errors in the console.
+- [Generate Image Placeholder](#agenda-1)
+- [React-Cache](#agenda-2)
+- [React-Suspense](#agenda-3)
+- [SrcSet](#agenda-4)
 
-### `yarn test`
+### Generate Image Placeholder <a name="agenda-1"></a>
 
-Launches the test runner in the interactive watch mode.<br />
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Because we want to display the image when it's fully loaded. We still need to display something during the image loading process.  
+A solution is to display the same image with a smaller size. But we will have to generate a smaller version for all our images. This might not be the best solution in some scenarios.  
+Another solution I want to show you is to generate a placeholder. Here I generate an SVG base on the size and color we need and encode to Base64. Then we can use it as a placeholder before the image is loaded.
 
-### `yarn build`
+```js
+const cache = {};
+const generatePlaceholder = (ratio, color) => {
+  const width = 1;
+  const height = ratio;
+  const key = `${ratio},${color}`;
 
-Builds the app for production to the `build` folder.<br />
-It correctly bundles React in production mode and optimizes the build for the best performance.
+  if (!cache[key]) {
+    cache[key] = `data:image/svg+xml;base64, ${window.btoa(
+      `<svg height="${height}" width="${width}" xmlns="http://www.w3.org/2000/svg">
+        <rect x="0" y="0" width="${width}" height="${height}" fill="${color}"/>
+      </svg>`
+    )}`;
+  }
 
-The build is minified and the filenames include the hashes.<br />
-Your app is ready to be deployed!
+  return cache[key];
+};
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### React-Cache <a name="agenda-2"></a>
 
-### `yarn eject`
+To use react suspense for the image loading, we will need to apply react cache to create a resource and resolve when image is loaded.
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+```js
+import { unstable_createResource } from "react-cache";
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+const ImageResource = unstable_createResource(
+  src =>
+    new Promise(resolve => {
+      const img = new Image();
+      img.src = src;
+      img.onload = resolve;
+    })
+);
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+If we use this in our application, we will see an error:  
+ `Cannot ready property 'readContext' of undefined`
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+The reason is that the API of React-cache is not ready and it's unstable at the moment.  
+So we need to add a patch to fix this issue.
+Here I use [patch-package](https://www.npmjs.com/package/patch-package) to handle this problem.
 
-## Learn More
+1. install package
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+```shell
+yarn add patch-package postinstall-postinstall
+```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+2. add postinstall script at package.json
 
-### Code Splitting
+```json
+"postinstall": "patch-package"
+```
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/code-splitting
+3. modify the code base on the [comment](https://github.com/facebook/react/issues/14575#issuecomment-455096301)
+4. generate patch
 
-### Analyzing the Bundle Size
+```shell
+yarn patch-package react-cache
+```
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size
+### React-Suspense <a name="agenda-3"></a>
 
-### Making a Progressive Web App
+Now we can apply React suspense to create a lazy load image.  
+Here we put our image src into the ImageResource which created through React-cache and use the placeholder as a fallback in React suspense.  
+Before the image loaded, the suspense will display the fallback.  
+After the image loaded and resolve the resource, the placeholder will be replaced by the original image.
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app
+```js
+import React, { Suspense } from "react";
 
-### Advanced Configuration
+const OriImg = ({ src, alt }) => {
+  ImageResource.read(src);
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/advanced-configuration
+  return <img src={src} alt={alt} />;
+};
 
-### Deployment
+const LazyLoadImg = ({ src, alt, ratio }) => {
+  const placeholder = generatePlaceholder(ratio, "black");
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/deployment
+  return (
+    <Suspense fallback={<img src={placeholder} alt={alt} />}>
+      <OriImg src={src} alt={alt} />
+    </Suspense>
+  );
+};
+```
 
-### `yarn build` fails to minify
+The result will look like this. And here is the repository for reference - [react-image-suspense](https://github.com/oahehc/react-image-suspense).
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify
+![image-lazy-load](https://i.imgur.com/BFfQj5s.gif)
+
+### SrcSet <a name="agenda-4"></a>
+
+It's worth mentioning that although display a placeholder while the image is loading can increase the user experience. But it won't make the image load faster. Therefore, to provide a proper size of the image is very important.
+
+If we want to display different sizes of the image on our web application base on the screen size. We can use `srcset` attribute on the img tag.
+
+```html
+<img sizes="(min-width: 40em) 80vw, 100vw" srcset=" ... " alt="…" />
+```
+
+---
+
+## Reference
+
+- [Creating a modern image gallery with React Suspense](https://medium.com/@andrisgauracs/creating-a-modern-image-gallery-with-react-suspense-4e2c1b5a19b7)
+- [Cannot ready property 'readContext' of undefined](https://github.com/facebook/react/issues/14575)
+- [patch-package](https://www.npmjs.com/package/patch-package)
+- [Responsive Images in CSS](https://css-tricks.com/responsive-images-css/)
