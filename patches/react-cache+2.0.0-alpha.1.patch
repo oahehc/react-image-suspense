@@ -1,0 +1,39 @@
+diff --git a/node_modules/react-cache/.DS_Store b/node_modules/react-cache/.DS_Store
+new file mode 100644
+index 0000000..b9d8955
+Binary files /dev/null and b/node_modules/react-cache/.DS_Store differ
+diff --git a/node_modules/react-cache/cjs/react-cache.development.js b/node_modules/react-cache/cjs/react-cache.development.js
+index 0181269..1e566c0 100644
+--- a/node_modules/react-cache/cjs/react-cache.development.js
++++ b/node_modules/react-cache/cjs/react-cache.development.js
+@@ -238,12 +238,26 @@ var Pending = 0;
+ var Resolved = 1;
+ var Rejected = 2;
+ 
+-var currentOwner = React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentOwner;
++// var currentOwner = React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentOwner;
++
++// function readContext(Context, observedBits) {
++//   var dispatcher = currentOwner.currentDispatcher;
++//   if (dispatcher === null) {
++//     throw new Error('react-cache: read and preload may only be called from within a ' + "component's render. They are not supported in event handlers or " + 'lifecycle methods.');
++//   }
++//   return dispatcher.readContext(Context, observedBits);
++// }
++
++var ReactCurrentDispatcher = React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher;
+ 
+ function readContext(Context, observedBits) {
+-  var dispatcher = currentOwner.currentDispatcher;
+-  if (dispatcher === null) {
+-    throw new Error('react-cache: read and preload may only be called from within a ' + "component's render. They are not supported in event handlers or " + 'lifecycle methods.');
++  const dispatcher = ReactCurrentDispatcher.current;
++    if (dispatcher === null) {
++    throw new Error(
++      'react-cache: read and preload may only be called from within a ' +
++        "component's render. They are not supported in event handlers or " +
++        'lifecycle methods.',
++    );
+   }
+   return dispatcher.readContext(Context, observedBits);
+ }
